@@ -74,39 +74,42 @@ export type ChatUpdate = Partial<Chat & {
 export type LastMessageList = MinimalMessage[] | proto.SyncActionValue.ISyncActionMessageRange
 
 export type ChatModification =
-    {
-        archive: boolean
-        lastMessages: LastMessageList
-    }
-    | { pushNameSetting: string }
-    | { pin: boolean }
-    | {
-        /** mute for duration, or provide timestamp of mute to remove*/
-        mute: number | null
-    }
-    | {
-        clear: boolean
-    } | {
-        deleteForMe: { deleteMedia: boolean, key: WAMessageKey, timestamp: number }
-    }
-    | {
-        star: {
-            messages: { id: string, fromMe?: boolean }[]
-            star: boolean
-        }
-    }
-    | {
-        markRead: boolean
-        lastMessages: LastMessageList
-    }
-    | { delete: true, lastMessages: LastMessageList }
-    // Label
-    | { addLabel: LabelActionBody }
-    // Label assosiation
-    | { addChatLabel: ChatLabelAssociationActionBody }
-    | { removeChatLabel: ChatLabelAssociationActionBody }
-    | { addMessageLabel: MessageLabelAssociationActionBody }
-    | { removeMessageLabel: MessageLabelAssociationActionBody }
+	| {
+			archive: boolean
+			lastMessages: LastMessageList
+	  }
+	| { pushNameSetting: string }
+	| { pin: boolean }
+	| {
+			/** mute for duration, or provide timestamp of mute to remove*/
+			mute: number | null
+	  }
+	| {
+			clear: boolean
+			lastMessages: LastMessageList
+	  }
+	| {
+			deleteForMe: { deleteMedia: boolean; key: WAMessageKey; timestamp: number }
+	  }
+	| {
+			star: {
+				messages: { id: string; fromMe?: boolean }[]
+				star: boolean
+			}
+	  }
+	| {
+			markRead: boolean
+			lastMessages: LastMessageList
+	  }
+	| { delete: true; lastMessages: LastMessageList }
+	| { contact: proto.SyncActionValue.IContactAction | null }
+	// Label
+	| { addLabel: LabelActionBody }
+	// Label assosiation
+	| { addChatLabel: ChatLabelAssociationActionBody }
+	| { removeChatLabel: ChatLabelAssociationActionBody }
+	| { addMessageLabel: MessageLabelAssociationActionBody }
+	| { removeMessageLabel: MessageLabelAssociationActionBody }
 
 export type InitialReceivedChatsState = {
     [jid: string]: {

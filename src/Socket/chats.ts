@@ -811,6 +811,30 @@ export const makeChatsSocket = (config: SocketConfig) => {
 	}
 
 	/**
+	 * Add or Edit Contact
+	 */
+	const addOrEditContact = (jid: string, contact: proto.SyncActionValue.IContactAction) => {
+		return chatModify(
+			{
+				contact
+			},
+			jid
+		)
+	}
+
+	/**
+	 * Remove Contact
+	 */
+	const removeContact = (jid: string) => {
+		return chatModify(
+			{
+				contact: null
+			},
+			jid
+		)
+	}
+
+	/**
 	 * Adds label
 	 */
 	const addLabel = (jid: string, labels: LabelActionBody) => {
@@ -1042,6 +1066,8 @@ export const makeChatsSocket = (config: SocketConfig) => {
 		resyncAppState,
 		chatModify,
 		cleanDirtyBits,
+		addOrEditContact,
+		removeContact,
 		addLabel,
 		addChatLabel,
 		removeChatLabel,
