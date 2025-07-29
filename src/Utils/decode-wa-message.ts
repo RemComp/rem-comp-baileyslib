@@ -1,6 +1,6 @@
 import { Boom } from '@hapi/boom'
 import { proto } from '../../WAProto'
-import { SignalRepository, WAMessageKey } from '../Types'
+import { SignalRepository, WAMessageKey, WAMessage } from '../Types'
 import { areJidsSameUser, BinaryNode, isJidBroadcast, isJidGroup, isJidMetaIa, isJidNewsletter, isJidStatusBroadcast, isJidUser, isLidUser } from '../WABinary'
 import { unpadRandomMax16 } from './generics'
 import { ILogger } from './logger'
@@ -30,11 +30,7 @@ type MessageType = 'chat' | 'peer_broadcast' | 'other_broadcast' | 'group' | 'di
  * Decode the received node as a message.
  * @note this will only parse the message, not decrypt it
  */
-export function decodeMessageNode(
-	stanza: BinaryNode,
-	meId: string,
-	meLid: string
-) {
+export function decodeMessageNode(stanza: BinaryNode, meId: string, meLid: string) {
 	let msgType: MessageType
 	let chatId: string
 	let author: string
@@ -47,67 +43,72 @@ export function decodeMessageNode(
 	const isMe = (jid: string) => areJidsSameUser(jid, meId)
 	const isMeLid = (jid: string) => areJidsSameUser(jid, meLid)
 
-	if(isJidUser(from) || isLidUser(from)) {
-		if(recipient && !isJidMetaIa(recipient)) {
-			if(!isMe(from) && !isMeLid(from)) {
+	if (isJidUser(from) || isLidUser(from)) {
+		if (recipient && !isJidMetaIa(recipient)) {
+			if (!isMe(from!) && !isMeLid(from!)) {
 				throw new Boom('receipient present, but msg not from me', { data: stanza })
 			}
 
 			chatId = recipient
 		} else {
-			chatId = from
+			chatId = from!
 		}
 
 		msgType = 'chat'
-		author = from
-	} else if(isJidGroup(from)) {
-		if(!participant) {
+		author = from!
+	} else if (isJidGroup(from)) {
+		if (!participant) {
 			throw new Boom('No participant in group message')
 		}
 
 		msgType = 'group'
 		author = participant
-		chatId = from
-	} else if(isJidBroadcast(from)) {
-		if(!participant) {
+		chatId = from!
+	} else if (isJidBroadcast(from)) {
+		if (!participant) {
 			throw new Boom('No participant in group message')
 		}
 
 		const isParticipantMe = isMe(participant)
-		if(isJidStatusBroadcast(from)) {
+		if (isJidStatusBroadcast(from!)) {
 			msgType = isParticipantMe ? 'direct_peer_status' : 'other_status'
 		} else {
 			msgType = isParticipantMe ? 'peer_broadcast' : 'other_broadcast'
 		}
 
-		chatId = from
+		chatId = from!
 		author = participant
-	} else if(isJidNewsletter(from)) {
+	} else if (isJidNewsletter(from)) {
 		msgType = 'newsletter'
-		chatId = from
-		author = from
+		chatId = from!
+		author = from!
 	} else {
 		throw new Boom('Unknown message type', { data: stanza })
 	}
 
-	const fromMe = (isLidUser(from) ? isMeLid : isMe)(stanza.attrs.participant || stanza.attrs.from)
+	const fromMe = (isLidUser(from) ? isMeLid : isMe)((stanza.attrs.participant || stanza.attrs.from)!)
 	const pushname = stanza?.attrs?.notify
 
 	const key: WAMessageKey = {
 		remoteJid: chatId,
 		fromMe,
 		id: msgId,
-		participant
+		senderLid: stanza?.attrs?.sender_lid,
+		senderPn: stanza?.attrs?.sender_pn,
+		participant,
+		participantPn: stanza?.attrs?.participant_pn,
+		participantLid: stanza?.attrs?.participant_lid,
+		...(msgType === 'newsletter' && stanza.attrs.server_id ? { server_id: stanza.attrs.server_id } : {})
 	}
 
-	const fullMessage: proto.IWebMessageInfo = {
+	const fullMessage: WAMessage = {
 		key,
-		messageTimestamp: +stanza.attrs.t,
+		messageTimestamp: +stanza.attrs.t!,
 		pushName: pushname,
 		broadcast: isJidBroadcast(from)
 	}
 
-	if(key.fromMe) {
+	if (key.fromMe) {
 		fullMessage.status = proto.WebMessageInfo.Status.SERVER_ACK
 	}
 
