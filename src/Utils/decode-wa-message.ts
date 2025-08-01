@@ -1,9 +1,19 @@
 import { Boom } from '@hapi/boom'
-import { proto } from '../../WAProto'
-import { SignalRepository, WAMessageKey, WAMessage } from '../Types'
-import { areJidsSameUser, BinaryNode, isJidBroadcast, isJidGroup, isJidMetaIa, isJidNewsletter, isJidStatusBroadcast, isJidUser, isLidUser } from '../WABinary'
+import { proto } from '../../WAProto/index.js'
+import type { SignalRepository, WAMessage, WAMessageKey } from '../Types'
+import {
+	areJidsSameUser,
+	type BinaryNode,
+	isJidBroadcast,
+	isJidGroup,
+	isJidMetaIa,
+	isJidNewsletter,
+	isJidStatusBroadcast,
+	isJidUser,
+	isLidUser
+} from '../WABinary'
 import { unpadRandomMax16 } from './generics'
-import { ILogger } from './logger'
+import type { ILogger } from './logger'
 
 export const NO_MESSAGE_FOUND_ERROR_TEXT = 'Message absent from node'
 export const MISSING_KEYS_ERROR_TEXT = 'Key used already or never filled'
@@ -24,7 +34,14 @@ export const NACK_REASONS = {
 	DBOperationFailed: 552
 }
 
-type MessageType = 'chat' | 'peer_broadcast' | 'other_broadcast' | 'group' | 'direct_peer_status' | 'other_status' | 'newsletter'
+type MessageType =
+	| 'chat'
+	| 'peer_broadcast'
+	| 'other_broadcast'
+	| 'group'
+	| 'direct_peer_status'
+	| 'other_status'
+	| 'newsletter'
 
 /**
  * Decode the received node as a message.
@@ -133,19 +150,23 @@ export const decryptMessageNode = (
 		author,
 		async decrypt() {
 			let decryptables = 0
-			if(Array.isArray(stanza.content)) {
-				for(const { tag, attrs, content } of stanza.content) {
-					if(tag === 'verified_name' && content instanceof Uint8Array) {
+			if (Array.isArray(stanza.content)) {
+				for (const { tag, attrs, content } of stanza.content) {
+					if (tag === 'verified_name' && content instanceof Uint8Array) {
 						const cert = proto.VerifiedNameCertificate.decode(content)
 						const details = proto.VerifiedNameCertificate.Details.decode(cert.details!)
 						fullMessage.verifiedBizName = details.verifiedName
 					}
 
-					if(tag !== 'enc' && tag !== 'plaintext') {
+					if (tag === 'unavailable' && attrs.type === 'view_once') {
+						fullMessage.key.isViewOnce = true
+					}
+
+					if (tag !== 'enc' && tag !== 'plaintext') {
 						continue
 					}
 
-					if(!(content instanceof Uint8Array)) {
+					if (!(content instanceof Uint8Array)) {
 						continue
 					}
 
@@ -156,53 +177,52 @@ export const decryptMessageNode = (
 					try {
 						const e2eType = tag === 'plaintext' ? 'plaintext' : attrs.type
 						switch (e2eType) {
-						case 'skmsg':
-							msgBuffer = await repository.decryptGroupMessage({
-								group: sender,
-								authorJid: author,
-								msg: content
-							})
-							break
-						case 'pkmsg':
-						case 'msg':
-							const user = isJidUser(sender) ? sender : author
-							msgBuffer = await repository.decryptMessage({
-								jid: user,
-								type: e2eType,
-								ciphertext: content
-							})
-							break
-						case 'plaintext':
-							msgBuffer = content
-							break
-						default:
-							throw new Error(`Unknown e2e type: ${e2eType}`)
+							case 'skmsg':
+								msgBuffer = await repository.decryptGroupMessage({
+									group: sender,
+									authorJid: author,
+									msg: content
+								})
+								break
+							case 'pkmsg':
+							case 'msg':
+								const user = isJidUser(sender) ? sender : author
+								msgBuffer = await repository.decryptMessage({
+									jid: user,
+									type: e2eType,
+									ciphertext: content
+								})
+								break
+							case 'plaintext':
+								msgBuffer = content
+								break
+							default:
+								throw new Error(`Unknown e2e type: ${e2eType}`)
 						}
 
-						let msg: proto.IMessage = proto.Message.decode(e2eType !== 'plaintext' ? unpadRandomMax16(msgBuffer) : msgBuffer)
+						let msg: proto.IMessage = proto.Message.decode(
+							e2eType !== 'plaintext' ? unpadRandomMax16(msgBuffer) : msgBuffer
+						)
 						msg = msg.deviceSentMessage?.message || msg
-						if(msg.senderKeyDistributionMessage) {
+						if (msg.senderKeyDistributionMessage) {
 							//eslint-disable-next-line max-depth
-						    try {
+							try {
 								await repository.processSenderKeyDistributionMessage({
 									authorJid: author,
 									item: msg.senderKeyDistributionMessage
 								})
-							} catch(err) {
+							} catch (err) {
 								logger.error({ key: fullMessage.key, err }, 'failed to decrypt message')
-						        }
+							}
 						}
 
-						if(fullMessage.message) {
+						if (fullMessage.message) {
 							Object.assign(fullMessage.message, msg)
 						} else {
 							fullMessage.message = msg
 						}
-					} catch(err) {
-						logger.error(
-							{ key: fullMessage.key, err },
-							'failed to decrypt message'
-						)
+					} catch (err: any) {
+						logger.error({ key: fullMessage.key, err }, 'failed to decrypt message')
 						fullMessage.messageStubType = proto.WebMessageInfo.StubType.CIPHERTEXT
 						fullMessage.messageStubParameters = [err.message]
 					}
@@ -210,7 +230,7 @@ export const decryptMessageNode = (
 			}
 
 			// if nothing was found to decrypt
-			if(!decryptables) {
+			if (!decryptables) {
 				fullMessage.messageStubType = proto.WebMessageInfo.StubType.CIPHERTEXT
 				fullMessage.messageStubParameters = [NO_MESSAGE_FOUND_ERROR_TEXT]
 			}
